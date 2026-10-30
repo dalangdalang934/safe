@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.vast_ssh
+.vast_ssh.pub
+.env
+best-safe.json
+current-best-safe.json
+*-safe.log
+*.log
+create2crunch/
+prettysafe/
+deadbeef/
+webgpu-check.cjs
