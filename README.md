@@ -35,7 +35,10 @@ python3 safe_miner.py FACTORY INITIALIZER_HASH PROXY_CREATION_CODE_HASH --second
 - `--work-size`：每次内核启动搜索的 nonce 数，默认 `2^26`
 - `--min-score`：GPU 上报候选的最低分数，默认 5
 - `--device N`：按序号选择 OpenCL 设备（所有平台合并编号）；默认优先 NVIDIA GPU，其次任意 GPU
-- `--output`：结果文件，默认 `best-safe.json`
+- `--output`：最佳结果文件，默认 `best-safe.json`
+- `--match-log`：把所有达到 `--min-score` 的候选追加到 JSONL 文件，包括相同分数的不同地址
+
+使用 `--match-log` 时阈值固定为 `--min-score`，不会因出现更高分结果而停止上报同分候选。`safe_notify.py` 可以逐条读取该 JSONL 文件并发送 Telegram 通知，需要设置 `TELEGRAM_BOT_TOKEN` 和 `BEST_FILE`。
 
 最佳结果写入 `best-safe.json`，包含：
 

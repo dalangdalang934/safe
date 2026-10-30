@@ -85,7 +85,7 @@ def _write_json(path, data):
 
 
 def mine(factory, initializer_hash, proxy_creation_code_hash, seconds=15, work_size=1 << 26,
-         min_score=5, device_index=None, output='best-safe.json'):
+         min_score=5, device_index=None, output='best-safe.json', match_log=None):
     import secrets
     import time
     import numpy as np
@@ -110,8 +110,9 @@ def mine(factory, initializer_hash, proxy_creation_code_hash, seconds=15, work_s
     best = {'score': 0}
     try:
         while seconds <= 0 or time.monotonic() - start < seconds:
+            threshold = min_score if match_log else max(min_score, best['score'] + 1)
             kernel.set_arg(0, np.uint64(base))
-            kernel.set_arg(1, np.uint32(max(min_score, best['score'] + 1)))
+            kernel.set_arg(1, np.uint32(threshold))
             cl.enqueue_nd_range_kernel(queue, kernel, (work_size,), None)
             cl.enqueue_copy(queue, count, count_buf)
             base += work_size
@@ -121,13 +122,25 @@ def mine(factory, initializer_hash, proxy_creation_code_hash, seconds=15, work_s
                 cl.enqueue_copy(queue, found[:n * FOUND_WORDS], found_buf)
                 cl.enqueue_copy(queue, count_buf, zero)
                 rows = found[:n * FOUND_WORDS].reshape(n, FOUND_WORDS)
-                top = rows[rows[:, 4].argmax()]
-                if int(top[4]) > best['score']:
-                    address = lanes_to_address(int(top[1]), int(top[2]), int(top[3]))
-                    best = validate_candidate(factory, int(top[0]), address, initializer_hash,
-                                              proxy_creation_code_hash, int(top[4]))
-                    _write_json(output, best)
-                    print(json.dumps(best), flush=True)
+                if match_log:
+                    with open(match_log, 'a') as f:
+                        for row in rows:
+                            address = lanes_to_address(int(row[1]), int(row[2]), int(row[3]))
+                            candidate = validate_candidate(factory, int(row[0]), address, initializer_hash,
+                                                          proxy_creation_code_hash, int(row[4]))
+                            f.write(json.dumps(candidate) + '\n')
+                            if candidate['score'] > best['score']:
+                                best = candidate
+                                _write_json(output, best)
+                                print(json.dumps(best), flush=True)
+                else:
+                    top = rows[rows[:, 4].argmax()]
+                    if int(top[4]) > best['score']:
+                        address = lanes_to_address(int(top[1]), int(top[2]), int(top[3]))
+                        best = validate_candidate(factory, int(top[0]), address, initializer_hash,
+                                                  proxy_creation_code_hash, int(top[4]))
+                        _write_json(output, best)
+                        print(json.dumps(best), flush=True)
             now = time.monotonic()
             if now - last_report >= 5:
                 last_report = now
@@ -151,6 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('--min-score', type=int, default=5)
     parser.add_argument('--device', type=int, help='index into all OpenCL devices across platforms')
     parser.add_argument('--output', default='best-safe.json')
+    parser.add_argument('--match-log', help='append every candidate at least min_score to this JSONL file')
     args = parser.parse_args()
     mine(args.factory, bytes.fromhex(args.initializer_hash), bytes.fromhex(args.proxy_creation_code_hash),
-         args.seconds, args.work_size, args.min_score, args.device, args.output)
+         args.seconds, args.work_size, args.min_score, args.device, args.output, args.match_log)

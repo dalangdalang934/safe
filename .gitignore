@@ -7,6 +7,9 @@ best-safe.json
 current-best-safe.json
 *-safe.log
 *.log
+*.jsonl
+best-safe-*.json
+.safe-notify-token
 create2crunch/
 prettysafe/
 deadbeef/
