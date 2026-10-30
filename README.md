@@ -29,7 +29,15 @@ Ubuntu 如果提示 `PLATFORM_NOT_FOUND_KHR`，安装 OpenCL loader，并确保 
 python3 safe_miner.py FACTORY INITIALIZER_HASH PROXY_CREATION_CODE_HASH --seconds 3600
 ```
 
-参数均为不带 `0x` 的 hex。最佳结果写入 `best-safe.json`，包含：
+参数均为不带 `0x` 的 hex。可选参数：
+
+- `--seconds 0`：一直运行，直到 Ctrl+C
+- `--work-size`：每次内核启动搜索的 nonce 数，默认 `2^26`
+- `--min-score`：GPU 上报候选的最低分数，默认 5
+- `--device N`：按序号选择 OpenCL 设备（所有平台合并编号）；默认优先 NVIDIA GPU，其次任意 GPU
+- `--output`：结果文件，默认 `best-safe.json`
+
+最佳结果写入 `best-safe.json`，包含：
 
 ```json
 {
@@ -76,9 +84,15 @@ OPENCL_TEST=1 INITIALIZER_HASH=你的_initializer_hash python3 -m unittest -v te
 
 可用 `START_NONCE` 指定并行哈希测试的起始 nonce。GPU 测试会短暂运行完整挖矿，并写入 `best-safe.json`。
 
+## 实现要点
+
+- initializer hash、factory、proxy creation code hash 在主机端预先拼成 Keccak lane，以 `#define` 编译期常量注入内核，Keccak 状态全程使用 64 位 lane 并保留在寄存器中
+- 重复位数用 XOR 与 `clz` 计算，不逐个 nibble 比较
+- 分数达到阈值（`max(--min-score, 当前最佳 + 1)`）的候选通过 `atomic_inc` 追加到候选缓冲区，无全局锁；主机端每批只读回一个计数器
+
 ## 性能参考
 
-同一 OpenCL 内核实测约为：
+优化前的内核实测约为（当前版本请以本机实测为准）：
 
 - RTX 4090：2.4 GH/s
 - RTX 5090：3.2 GH/s
